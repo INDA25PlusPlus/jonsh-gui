@@ -1,13 +1,10 @@
-use std::io;
-
 use chess_api::{
-    perform_moves,
+    perform_moves::{self, is_legal},
     state::{GameState, History},
 };
 use ggez::{
     Context, ContextBuilder, GameResult, conf, event,
     graphics::{self, Color, DrawParam, Image, Mesh, Rect},
-    input,
 };
 
 struct Mainstate {
@@ -19,6 +16,7 @@ struct Mainstate {
     selected_square: Option<(i8, i8)>,
     pos1: Option<i8>,
     pos2: Option<i8>,
+    available_squares: Vec<i8>,
 }
 
 impl Mainstate {
@@ -60,6 +58,7 @@ impl Mainstate {
             selected_square: None,
             pos1: None,
             pos2: None,
+            available_squares: Vec::new(),
         })
     }
 
@@ -99,13 +98,29 @@ impl event::EventHandler for Mainstate {
             }
             if self.pos1 == None {
                 self.pos1 = Some(pos);
+                for blablabla in 0..64 {
+                    if is_legal(self.pos1.unwrap(), blablabla, &self.state) {
+                        self.available_squares.push(blablabla);
+                    }
+                }
             } else if self.pos2 == None {
                 self.pos2 = Some(pos);
+                self.available_squares = Vec::new();
             }
+
             if self.pos1 != None && self.pos2 != None {
-                println!("pos1 {} , pos2 {} ", self.pos1.unwrap(), self.pos2.unwrap());
-                self.make_move(self.pos1.unwrap(), self.pos2.unwrap());
-                (self.pos1, self.pos2) = (None, None);
+                if is_legal(self.pos1.unwrap(), self.pos2.unwrap(), &self.state) {
+                    self.make_move(self.pos1.unwrap(), self.pos2.unwrap());
+                    (self.pos1, self.pos2) = (None, None);
+                } else {
+                    self.pos1 = Some(pos);
+                    for blablabla in 0..64 {
+                        if is_legal(self.pos1.unwrap(), blablabla, &self.state) {
+                            self.available_squares.push(blablabla);
+                        }
+                    }
+                    self.pos2 = None;
+                }
             }
         }
 
@@ -126,11 +141,17 @@ impl event::EventHandler for Mainstate {
             canvas.draw(&square, graphics::DrawParam::default());
         }
         if let Some((row, col)) = self.selected_square {
+            let mut colorrr = 0x0000ff;
+            if (row + col) % 2 == 1 {
+                colorrr = 0x737373;
+            } else {
+                colorrr = 0xa22b5c;
+            }
             let highlight = Mesh::new_rectangle(
                 ctx,
                 graphics::DrawMode::fill(),
                 Rect::new(col as f32 * 50.0, row as f32 * 50.0, 50.0, 50.0),
-                Color::GREEN,
+                Color::from_rgb_u32(colorrr),
             )
             .unwrap();
             canvas.draw(&highlight, graphics::DrawParam::default());
@@ -150,6 +171,32 @@ impl event::EventHandler for Mainstate {
         //     .unwrap();
         //     canvas.draw(&hover_square, graphics::DrawParam::default());
         // }
+        for piece_position in &self.available_squares {
+            let mut colorrr = 0x0000ff;
+            let row = piece_position / 8;
+            let col = piece_position % 8;
+
+            let x = col as f32 * 50.0;
+            let y = (7 - row) as f32 * 50.0;
+
+            if (row + col) % 2 == 0 {
+                colorrr = 0x737373;
+            } else {
+                colorrr = 0xa22b5c;
+            }
+
+            let circles = Mesh::new_circle(
+                ctx,
+                graphics::DrawMode::fill(),
+                [x + 25.0, y + 25.0],
+                15.0,
+                0.1,
+                Color::from_rgb_u32(colorrr),
+            )
+            .unwrap();
+
+            canvas.draw(&circles, graphics::DrawParam::default());
+        }
         let piece_bitboards = [
             (self.state.board.white_pawns, 0),
             (self.state.board.white_knights, 1),
@@ -179,7 +226,6 @@ impl event::EventHandler for Mainstate {
                 }
             }
         }
-
         canvas.finish(ctx)?;
         Ok(())
     }
