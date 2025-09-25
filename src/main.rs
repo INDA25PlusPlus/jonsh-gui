@@ -1,14 +1,14 @@
+use std::io;
+
 use chess_api::{
-    bitboards, perform_moves,
+    perform_moves,
     state::{GameState, History},
-    visualize,
 };
 use ggez::{
     Context, ContextBuilder, GameResult, conf, event,
-    graphics::{self, Color, DrawParam, Image, Mesh, Rect, Text, TextFragment},
-    winit::event_loop,
+    graphics::{self, Color, DrawParam, Image, Mesh, Rect},
+    input,
 };
-use std::{io, str::Chars};
 
 struct Mainstate {
     state: GameState,
@@ -16,6 +16,9 @@ struct Mainstate {
     last_move: Option<(i8, i8)>,
     grid: Vec<(f32, f32, Color)>,
     image: [Image; 12],
+    selected_square: Option<(i8, i8)>,
+    pos1: Option<i8>,
+    pos2: Option<i8>,
 }
 
 impl Mainstate {
@@ -26,7 +29,11 @@ impl Mainstate {
                 if (j + i) % 2 == 1 {
                     grid.push((50.0 * i as f32, 50.0 * j as f32, Color::WHITE));
                 } else {
-                    grid.push((50.0 * i as f32, 50.0 * j as f32, Color::MAGENTA));
+                    grid.push((
+                        50.0 * i as f32,
+                        50.0 * j as f32,
+                        Color::from_rgb_u32(0xE83D84),
+                    ));
                 }
             }
         }
@@ -50,6 +57,9 @@ impl Mainstate {
             last_move: None,
             grid,
             image,
+            selected_square: None,
+            pos1: None,
+            pos2: None,
         })
     }
 
@@ -61,34 +71,49 @@ impl Mainstate {
 
 impl event::EventHandler for Mainstate {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
-        let mut input = String::new();
-        io::stdin().read_line(&mut input).unwrap();
-        let mut chars = input.trim().chars();
-        let file_char = chars.next().unwrap();
-        let rank_char = chars.next().unwrap();
-        let rank = (rank_char as u8).wrapping_sub(b'1') as i8;
-        let file = (file_char as u8).wrapping_sub(b'a') as i8;
-        let f = (file) + (rank * 8);
-        input.clear();
-        io::stdin().read_line(&mut input).unwrap();
-        let mut chars = input.trim().chars();
-        let file_char = chars.next().unwrap();
-        let rank_char = chars.next().unwrap();
-        let rank = (rank_char as u8).wrapping_sub(b'1') as i8;
-        let file = (file_char as u8).wrapping_sub(b'a') as i8;
-        let t = (file) + (rank * 8);
-        self.make_move(f, t);
+        // let mut input = String::new();
+        // io::stdin().read_line(&mut input).unwrap();
+        // let mut chars = input.trim().chars();
+        // let file_char = chars.next().unwrap();
+        // let rank_char = chars.next().unwrap();
+        // let rank = (rank_char as u8).wrapping_sub(b'1') as i8;
+        // let file = (file_char as u8).wrapping_sub(b'a') as i8;
+        // let f = (file) + (rank * 8);
+        // input.clear();
+        // io::stdin().read_line(&mut input).unwrap();
+        // let mut chars = input.trim().chars();
+        // let file_char = chars.next().unwrap();
+        // let rank_char = chars.next().unwrap();
+        // let rank = (rank_char as u8).wrapping_sub(b'1') as i8;
+        // let file = (file_char as u8).wrapping_sub(b'a') as i8;
+        // let t = (file) + (rank * 8);
+        // self.make_move(8, 16);
+        if _ctx.mouse.button_just_pressed(event::MouseButton::Left) {
+            let row = (_ctx.mouse.position().y / 50.0) as i8;
+            let col = (_ctx.mouse.position().x / 50.0) as i8;
+            let pos = (7 - row) * 8 + col;
+            if self.selected_square == Some((row, col)) {
+                self.selected_square = None;
+            } else {
+                self.selected_square = Some((row, col));
+            }
+            if self.pos1 == None {
+                self.pos1 = Some(pos);
+            } else if self.pos2 == None {
+                self.pos2 = Some(pos);
+            }
+            if self.pos1 != None && self.pos2 != None {
+                println!("pos1 {} , pos2 {} ", self.pos1.unwrap(), self.pos2.unwrap());
+                self.make_move(self.pos1.unwrap(), self.pos2.unwrap());
+                (self.pos1, self.pos2) = (None, None);
+            }
+        }
+
         Ok(())
     }
 
     fn draw(&mut self, ctx: &mut Context) -> GameResult {
         let mut canvas = graphics::Canvas::from_frame(ctx, Color::from_rgb_u32(0xE83D84));
-
-        visualize::print_board(&self.state.board);
-
-        let text = Text::new(format!("Last Move: {:?}", self.last_move));
-
-        canvas.draw(&text, graphics::DrawParam::default().dest([100.0, 100.0]));
 
         for (x, y, color) in &self.grid {
             let square = Mesh::new_rectangle(
@@ -99,33 +124,39 @@ impl event::EventHandler for Mainstate {
             )
             .unwrap();
             canvas.draw(&square, graphics::DrawParam::default());
-            println!("{:?}", *x);
         }
-        let white_bitboards = [
+        if let Some((row, col)) = self.selected_square {
+            let highlight = Mesh::new_rectangle(
+                ctx,
+                graphics::DrawMode::fill(),
+                Rect::new(col as f32 * 50.0, row as f32 * 50.0, 50.0, 50.0),
+                Color::GREEN,
+            )
+            .unwrap();
+            canvas.draw(&highlight, graphics::DrawParam::default());
+        }
+        // if ctx.mouse.button_just_pressed(event::MouseButton::Left)
+        //     | ctx.mouse.button_just_released(event::MouseButton::Left)
+        // {
+        //     let row: i8 = (ctx.mouse.position().y / 50.0) as i8;
+        //     let col: i8 = (ctx.mouse.position().x / 50.0) as i8;
+        //     let pos = col + row * 8;
+        //     let hover_square = Mesh::new_rectangle(
+        //         ctx,
+        //         graphics::DrawMode::fill(),
+        //         Rect::new(col as f32 * 50.0, row as f32 * 50.0, 50.0, 50.0),
+        //         Color::GREEN,
+        //     )
+        //     .unwrap();
+        //     canvas.draw(&hover_square, graphics::DrawParam::default());
+        // }
+        let piece_bitboards = [
             (self.state.board.white_pawns, 0),
             (self.state.board.white_knights, 1),
             (self.state.board.white_bishops, 2),
             (self.state.board.white_rooks, 3),
             (self.state.board.white_queens, 4),
             (self.state.board.white_king, 5),
-        ];
-        for (piece, symbol) in white_bitboards.iter() {
-            let mut m = 0;
-            for l in 0..64 {
-                if (piece >> l) & 1 == 1 {
-                    let row = l / 8;
-                    let col = l % 8;
-
-                    let x = col as f32 * 50.0;
-                    let y = (7 - row) as f32 * 50.0;
-                    canvas.draw(
-                        &self.image[*symbol],
-                        DrawParam::default().dest([x, y]).scale([0.4, 0.4]),
-                    );
-                }
-            }
-        }
-        let black_bitboards = [
             (self.state.board.black_pawns, 6),
             (self.state.board.black_knights, 7),
             (self.state.board.black_bishops, 8),
@@ -133,11 +164,11 @@ impl event::EventHandler for Mainstate {
             (self.state.board.black_queens, 10),
             (self.state.board.black_king, 11),
         ];
-        for (piece, symbol) in black_bitboards.iter() {
-            for n in 0..64 {
-                if (piece >> n) & 1 == 1 {
-                    let row = n / 8;
-                    let col = n % 8;
+        for (piece, symbol) in piece_bitboards.iter() {
+            for k in 0..64 {
+                if (piece >> k) & 1 == 1 {
+                    let row = k / 8;
+                    let col = k % 8;
 
                     let x = col as f32 * 50.0;
                     let y = (7 - row) as f32 * 50.0;
@@ -148,11 +179,6 @@ impl event::EventHandler for Mainstate {
                 }
             }
         }
-
-        let pawns: Vec<bool> = (0..64)
-            .map(|i| (self.state.board.black_pawns >> i) & 1 == 1)
-            .collect();
-        println!("{:?}", pawns);
 
         canvas.finish(ctx)?;
         Ok(())
@@ -168,28 +194,3 @@ fn main() -> GameResult {
     let state = Mainstate::new(&mut ctx)?;
     event::run(ctx, event_loop, state)
 }
-
-// let mut state = GameState::new();
-//     let mut history = History::new();
-//     loop {
-//         chess_api::visualize::print_board(&state.board);
-//         let mut input = String::new();
-//         io::stdin().read_line(&mut input).unwrap();
-//         let mut chars = input.trim().chars();
-//         let file_char = chars.next().unwrap();
-//         let rank_char = chars.next().unwrap();
-//         let rank = (rank_char as u8).wrapping_sub(b'1') as i8;
-//         let file = (file_char as u8).wrapping_sub(b'a') as i8;
-//         let f = (file) + (rank * 8);
-//         input.clear();
-//         io::stdin().read_line(&mut input).unwrap();
-//         let mut chars = input.trim().chars();
-//         let file_char = chars.next().unwrap();
-//         let rank_char = chars.next().unwrap();
-//         let rank = (rank_char as u8).wrapping_sub(b'1') as i8;
-//         let file = (file_char as u8).wrapping_sub(b'a') as i8;
-//         let t = (file) + (rank * 8);
-//         println!("{:?}", f);
-//         println!("{:?}", t);
-//         chess_api::perform_moves::make_move(f, t, &mut state, &mut history, true);
-//     }
