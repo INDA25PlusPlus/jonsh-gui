@@ -70,23 +70,6 @@ impl Mainstate {
 
 impl event::EventHandler for Mainstate {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
-        // let mut input = String::new();
-        // io::stdin().read_line(&mut input).unwrap();
-        // let mut chars = input.trim().chars();
-        // let file_char = chars.next().unwrap();
-        // let rank_char = chars.next().unwrap();
-        // let rank = (rank_char as u8).wrapping_sub(b'1') as i8;
-        // let file = (file_char as u8).wrapping_sub(b'a') as i8;
-        // let f = (file) + (rank * 8);
-        // input.clear();
-        // io::stdin().read_line(&mut input).unwrap();
-        // let mut chars = input.trim().chars();
-        // let file_char = chars.next().unwrap();
-        // let rank_char = chars.next().unwrap();
-        // let rank = (rank_char as u8).wrapping_sub(b'1') as i8;
-        // let file = (file_char as u8).wrapping_sub(b'a') as i8;
-        // let t = (file) + (rank * 8);
-        // self.make_move(8, 16);
         if _ctx.mouse.button_just_pressed(event::MouseButton::Left) {
             let row = (_ctx.mouse.position().y / 50.0) as i8;
             let col = (_ctx.mouse.position().x / 50.0) as i8;
@@ -141,7 +124,7 @@ impl event::EventHandler for Mainstate {
             canvas.draw(&square, graphics::DrawParam::default());
         }
         if let Some((row, col)) = self.selected_square {
-            let mut colorrr = 0x0000ff;
+            let colorrr: u32;
             if (row + col) % 2 == 1 {
                 colorrr = 0x737373;
             } else {
@@ -156,23 +139,8 @@ impl event::EventHandler for Mainstate {
             .unwrap();
             canvas.draw(&highlight, graphics::DrawParam::default());
         }
-        // if ctx.mouse.button_just_pressed(event::MouseButton::Left)
-        //     | ctx.mouse.button_just_released(event::MouseButton::Left)
-        // {
-        //     let row: i8 = (ctx.mouse.position().y / 50.0) as i8;
-        //     let col: i8 = (ctx.mouse.position().x / 50.0) as i8;
-        //     let pos = col + row * 8;
-        //     let hover_square = Mesh::new_rectangle(
-        //         ctx,
-        //         graphics::DrawMode::fill(),
-        //         Rect::new(col as f32 * 50.0, row as f32 * 50.0, 50.0, 50.0),
-        //         Color::GREEN,
-        //     )
-        //     .unwrap();
-        //     canvas.draw(&hover_square, graphics::DrawParam::default());
-        // }
         for piece_position in &self.available_squares {
-            let mut colorrr = 0x0000ff;
+            let colorrr: u32;
             let row = piece_position / 8;
             let col = piece_position % 8;
 
