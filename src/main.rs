@@ -7,9 +7,15 @@ use ggez::{
     graphics::{self, Color, DrawParam, Image, Mesh, Rect},
 };
 
-use std::io::{self, ErrorKind};
-use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::{
+    env::var,
+    io::{Read, Write},
+};
+use std::{
+    i8,
+    io::{self, ErrorKind},
+};
 pub mod network;
 #[derive(Debug)]
 enum Connection {
@@ -79,6 +85,29 @@ impl Mainstate {
         perform_moves::make_move(from, to, &mut self.state, &mut self.history, true);
         self.last_move = Some((from, to));
     }
+
+    fn i_have_to_come_up_with_new_names_but_i_have_run_out_of_ideas(&self, index: i8) -> char {
+        let piece_bitboards_2 = [
+            (self.state.board.white_pawns, 'P'),
+            (self.state.board.white_knights, 'N'),
+            (self.state.board.white_bishops, 'B'),
+            (self.state.board.white_rooks, 'R'),
+            (self.state.board.white_queens, 'Q'),
+            (self.state.board.white_king, 'K'),
+            (self.state.board.black_pawns, 'p'),
+            (self.state.board.black_knights, 'n'),
+            (self.state.board.black_bishops, 'b'),
+            (self.state.board.black_rooks, 'r'),
+            (self.state.board.black_queens, 'q'),
+            (self.state.board.black_king, 'k'),
+        ];
+        for (bitboard, name) in piece_bitboards_2.iter() {
+            if (bitboard >> index) & 1 == 1 {
+                return *name;
+            }
+        }
+        return ' ';
+    }
 }
 
 impl event::EventHandler for Mainstate {
@@ -88,6 +117,9 @@ impl event::EventHandler for Mainstate {
             let row = (_ctx.mouse.position().y / (X * 50.0)) as i8;
             let col = (_ctx.mouse.position().x / (X * 50.0)) as i8;
             let pos = (7 - row) * 8 + col;
+
+            // let mut first_notation = String::new();
+            // let mut second_notation = String::new();
 
             //Set selected square to the most recently clicked square/tile
             if self.selected_square == Some((row, col)) {
@@ -99,13 +131,19 @@ impl event::EventHandler for Mainstate {
             //Set pos1 to clicked square/tile and process available squares
             if self.pos1 == None {
                 self.pos1 = Some(pos);
+                // first_notation = Some(((b'A' + (col as u8)) as char).to_string()).unwrap()
+                // + (8 - row).to_string().as_str();
+                // println!("First: {:?}", first_notation);
                 for blablabla in 0..64 {
                     if is_legal(self.pos1.unwrap(), blablabla, &self.state) {
                         self.available_squares.push(blablabla);
                     }
                 }
             } else if self.pos2 == None && self.pos1 != Some(pos) {
+                // second_notation = Some(((b'A' + (col as u8)) as char).to_string()).unwrap()
+                // + (8 - row).to_string().as_str();
                 self.pos2 = Some(pos);
+                // println!("Second: {:?}", second_notation);
                 self.available_squares = Vec::new();
             } else {
                 self.pos1 = None;
@@ -114,15 +152,92 @@ impl event::EventHandler for Mainstate {
             if self.pos1 != None && self.pos2 != None && self.pos1 != self.pos2 {
                 if is_legal(self.pos1.unwrap(), self.pos2.unwrap(), &self.state) {
                     self.make_move(self.pos1.unwrap(), self.pos2.unwrap());
-                    // GAME IS CLIENT
-                    self.stream.write(
-                        (self.pos1.unwrap().to_string()
-                            + ":"
-                            + self.pos2.unwrap().to_string().as_str())
-                        .as_bytes(),
-                    )?;
-                    // GAME IS CLIENT "12:12"
+
+                    let first_notation =
+                        Some(((b'A' + ((self.pos1.unwrap() % 8) as u8)) as char).to_string())
+                            .unwrap()
+                            + (1 + ((self.pos1.unwrap() - (self.pos1.unwrap() % 8)) as f32 / 8.0)
+                                as u8)
+                                .to_string()
+                                .as_str();
+                    let second_notation =
+                        Some(((b'A' + ((self.pos2.unwrap() % 8) as u8)) as char).to_string())
+                            .unwrap()
+                            + (1 + ((self.pos2.unwrap() - (self.pos2.unwrap() % 8)) as f32 / 8.0)
+                                as u8)
+                                .to_string()
+                                .as_str();
+                    let move_message = first_notation + second_notation.as_str();
+                    let mut listsakgrej: Vec<char> = Vec::new();
+                    for k in 0..8 {
+                        let mut variable = 0;
+                        for i in 0..8 {
+                            if self.i_have_to_come_up_with_new_names_but_i_have_run_out_of_ideas(
+                                (i) + ((7 - k) * 8),
+                            ) == ' '
+                            {
+                                variable += 1;
+                                if self
+                                    .i_have_to_come_up_with_new_names_but_i_have_run_out_of_ideas(
+                                        (i) + ((7 - k) * 8) + 1,
+                                    )
+                                    != ' '
+                                    && i != 7
+                                {
+                                    listsakgrej.push(char::from_digit(variable, 10).unwrap());
+                                    variable = 0;
+                                } else if i == 7 {
+                                    listsakgrej.push(char::from_digit(variable, 10).unwrap());
+                                    variable = 0;
+                                }
+                            } else {
+                                listsakgrej.push(
+                                self.i_have_to_come_up_with_new_names_but_i_have_run_out_of_ideas(
+                                    (i) + ((7 - k) * 8),
+                                ),
+                            );
+                            }
+                        }
+                        if k != 7 {
+                            listsakgrej.push('/');
+                        }
+                    }
+                    let the_message = listsakgrej.into_iter().collect::<String>();
+                    println!("DET HÄR ÄR MIN LISTA HOPPAS HJAG: {:?}", the_message);
+                    // let mut fein = Vec::new();
+                    // let piece_bitboards = [
+                    //     (self.state.board.white_pawns, "P"),
+                    //     (self.state.board.white_knights, "N"),
+                    //     (self.state.board.white_bishops, "B"),
+                    //     (self.state.board.white_rooks, "R"),
+                    //     (self.state.board.white_queens, "Q"),
+                    //     (self.state.board.white_king, "K"),
+                    //     (self.state.board.black_pawns, "p"),
+                    //     (self.state.board.black_knights, "n"),
+                    //     (self.state.board.black_bishops, "b"),
+                    //     (self.state.board.black_rooks, "r"),
+                    //     (self.state.board.black_queens, "q"),
+                    //     (self.state.board.black_king, "k"),
+                    // ];
+                    // for (piece, name) in piece_bitboards.iter() {
+                    //     for k in 0..64 {
+                    //         if (piece >> k) & 1 == 1 {
+                    //             fein.push((k, *name));
+                    //         }
+                    //     }
+                    // }
+                    // for (k, name) in fein {
+                    //     println!("PLEASE HELP ME OH GOD: {:?}", name);
+                    // }
+                    // let mut im_a_motherfucking_baller_get_it_right_fool = Vec::new();
+                    // for i in 0..64 {
+                    //     for j in 0..32 {}
+                    // }
+
+                    // println!("FUCK THSI BULLLSHIT: {:?}", fein);
+                    self.stream.write(move_message.as_bytes())?;
                     (self.pos1, self.pos2) = (None, None);
+                    //NOOOOOOOOOOOOOOO
                 } else {
                     self.pos1 = Some(pos);
                     for blablabla in 0..64 {
@@ -137,9 +252,13 @@ impl event::EventHandler for Mainstate {
         let mut buffer = [0; 128];
         match self.stream.read(&mut buffer) {
             Ok(n) => {
-                let message = str::from_utf8(&buffer[0..n]).unwrap();
-                let pos1: i8 = message.split(":").collect::<Vec<_>>()[0].parse().unwrap();
-                let pos2: i8 = message.split(":").collect::<Vec<_>>()[1].parse().unwrap();
+                let message = str::from_utf8(&buffer[0..n])
+                    .unwrap()
+                    .chars()
+                    .map(|character| character.to_digit(18).unwrap())
+                    .collect::<Vec<_>>();
+                let pos1: i8 = ((message[0] - 10) + ((message[1] as u32 - 1) * 8)) as i8;
+                let pos2: i8 = ((message[2] - 10) + ((message[3] as u32 - 1) * 8)) as i8;
                 self.make_move(pos1, pos2);
             }
             Err(ref e) if e.kind() == ErrorKind::WouldBlock => {}
