@@ -7,6 +7,15 @@ use ggez::{
     graphics::{self, Color, DrawParam, Image, Mesh, Rect},
 };
 
+use std::io::{self, ErrorKind};
+use std::io::{Read, Write};
+use std::net::{TcpListener, TcpStream};
+pub mod network;
+#[derive(Debug)]
+enum Connection {
+    Server,
+    Client,
+}
 struct Mainstate {
     state: GameState,
     history: History,
@@ -17,19 +26,21 @@ struct Mainstate {
     pos1: Option<i8>,
     pos2: Option<i8>,
     available_squares: Vec<i8>,
+    connection: Connection,
+    stream: TcpStream,
 }
-
+const X: f32 = 2.0;
 impl Mainstate {
-    fn new(_ctx: &mut Context) -> GameResult<Mainstate> {
+    fn new(_ctx: &mut Context, connection: Connection, stream: TcpStream) -> GameResult<Mainstate> {
         let mut grid: Vec<(f32, f32, Color)> = Vec::new();
         for i in 0..=7 {
             for j in 0..=7 {
                 if (j + i) % 2 == 1 {
-                    grid.push((50.0 * i as f32, 50.0 * j as f32, Color::WHITE));
+                    grid.push((X * 50.0 * i as f32, X * 50.0 * j as f32, Color::WHITE));
                 } else {
                     grid.push((
-                        50.0 * i as f32,
-                        50.0 * j as f32,
+                        X * 50.0 * i as f32,
+                        X * 50.0 * j as f32,
                         Color::from_rgb_u32(0xE83D84),
                     ));
                 }
@@ -59,6 +70,8 @@ impl Mainstate {
             pos1: None,
             pos2: None,
             available_squares: Vec::new(),
+            connection,
+            stream,
         })
     }
 
@@ -71,14 +84,19 @@ impl Mainstate {
 impl event::EventHandler for Mainstate {
     fn update(&mut self, _ctx: &mut Context) -> GameResult {
         if _ctx.mouse.button_just_pressed(event::MouseButton::Left) {
-            let row = (_ctx.mouse.position().y / 50.0) as i8;
-            let col = (_ctx.mouse.position().x / 50.0) as i8;
+            // Set row, col and pos to mouse position
+            let row = (_ctx.mouse.position().y / (X * 50.0)) as i8;
+            let col = (_ctx.mouse.position().x / (X * 50.0)) as i8;
             let pos = (7 - row) * 8 + col;
+
+            //Set selected square to the most recently clicked square/tile
             if self.selected_square == Some((row, col)) {
                 self.selected_square = None;
             } else {
                 self.selected_square = Some((row, col));
             }
+
+            //Set pos1 to clicked square/tile and process available squares
             if self.pos1 == None {
                 self.pos1 = Some(pos);
                 for blablabla in 0..64 {
@@ -86,14 +104,24 @@ impl event::EventHandler for Mainstate {
                         self.available_squares.push(blablabla);
                     }
                 }
-            } else if self.pos2 == None {
+            } else if self.pos2 == None && self.pos1 != Some(pos) {
                 self.pos2 = Some(pos);
                 self.available_squares = Vec::new();
+            } else {
+                self.pos1 = None;
+                self.available_squares = Vec::new();
             }
-
-            if self.pos1 != None && self.pos2 != None {
+            if self.pos1 != None && self.pos2 != None && self.pos1 != self.pos2 {
                 if is_legal(self.pos1.unwrap(), self.pos2.unwrap(), &self.state) {
                     self.make_move(self.pos1.unwrap(), self.pos2.unwrap());
+                    // GAME IS CLIENT
+                    self.stream.write(
+                        (self.pos1.unwrap().to_string()
+                            + ":"
+                            + self.pos2.unwrap().to_string().as_str())
+                        .as_bytes(),
+                    )?;
+                    // GAME IS CLIENT "12:12"
                     (self.pos1, self.pos2) = (None, None);
                 } else {
                     self.pos1 = Some(pos);
@@ -106,7 +134,17 @@ impl event::EventHandler for Mainstate {
                 }
             }
         }
-
+        let mut buffer = [0; 128];
+        match self.stream.read(&mut buffer) {
+            Ok(n) => {
+                let message = str::from_utf8(&buffer[0..n]).unwrap();
+                let pos1: i8 = message.split(":").collect::<Vec<_>>()[0].parse().unwrap();
+                let pos2: i8 = message.split(":").collect::<Vec<_>>()[1].parse().unwrap();
+                self.make_move(pos1, pos2);
+            }
+            Err(ref e) if e.kind() == ErrorKind::WouldBlock => {}
+            Err(e) => panic!("{:?}", e),
+        }
         Ok(())
     }
 
@@ -117,7 +155,7 @@ impl event::EventHandler for Mainstate {
             let square = Mesh::new_rectangle(
                 ctx,
                 graphics::DrawMode::fill(),
-                Rect::new(*x, *y, 50.0, 50.0),
+                Rect::new(*x, *y, X * 50.0, X * 50.0),
                 *color,
             )
             .unwrap();
@@ -133,7 +171,12 @@ impl event::EventHandler for Mainstate {
             let highlight = Mesh::new_rectangle(
                 ctx,
                 graphics::DrawMode::fill(),
-                Rect::new(col as f32 * 50.0, row as f32 * 50.0, 50.0, 50.0),
+                Rect::new(
+                    col as f32 * 50.0 * X,
+                    row as f32 * 50.0 * X,
+                    50.0 * X,
+                    50.0 * X,
+                ),
                 Color::from_rgb_u32(colorrr),
             )
             .unwrap();
@@ -144,8 +187,8 @@ impl event::EventHandler for Mainstate {
             let row = piece_position / 8;
             let col = piece_position % 8;
 
-            let x = col as f32 * 50.0;
-            let y = (7 - row) as f32 * 50.0;
+            let x = col as f32 * 50.0 * X;
+            let y = (7 - row) as f32 * 50.0 * X;
 
             if (row + col) % 2 == 0 {
                 colorrr = 0x737373;
@@ -156,8 +199,8 @@ impl event::EventHandler for Mainstate {
             let circles = Mesh::new_circle(
                 ctx,
                 graphics::DrawMode::fill(),
-                [x + 25.0, y + 25.0],
-                15.0,
+                [x + 25.0 * X, y + 25.0 * X],
+                15.0 * X,
                 0.1,
                 Color::from_rgb_u32(colorrr),
             )
@@ -185,26 +228,78 @@ impl event::EventHandler for Mainstate {
                     let row = k / 8;
                     let col = k % 8;
 
-                    let x = col as f32 * 50.0;
-                    let y = (7 - row) as f32 * 50.0;
+                    let x = col as f32 * 50.0 * X;
+                    let y = (7 - row) as f32 * 50.0 * X;
                     canvas.draw(
                         &self.image[*symbol],
-                        DrawParam::default().dest([x, y]).scale([0.4, 0.4]),
+                        DrawParam::default().dest([x, y]).scale([0.4 * X, 0.4 * X]),
                     );
                 }
             }
         }
+        // ctx.gfx
+        //     .add_font("FFFnt", graphics::FontData::from_path(ctx, "/font2.ttf")?);
+        // let mut text = Text::new("HELLO");
+        // text.set_scale(100.0);
+
+        // canvas.draw(
+        //     &text,
+        //     DrawParam::default()
+        //         .dest([500.0, 1000.0])
+        //         .color(Color::WHITE),
+        // );
+        // text.set_font("FFFnt");
+        // canvas.draw(
+        //     &text,
+        //     DrawParam::default()
+        //         .dest([100.0, 1000.0])
+        //         .color(Color::WHITE),
+        // );
+
         canvas.finish(ctx)?;
         Ok(())
     }
 }
 
 fn main() -> GameResult {
+    let connection: Connection;
+    let stream: TcpStream;
+    let mut text = String::new();
+    io::stdin().read_line(&mut text).unwrap();
+    if text.trim() == "server" {
+        connection = Connection::Server;
+        let game_listener = TcpListener::bind("127.0.0.1:7878")?;
+        // game_listener.set_nonblocking(false);
+        stream = game_listener.accept()?.0;
+        println!("Server");
+    } else {
+        connection = Connection::Client;
+        let game_listener = TcpStream::connect("127.0.0.1:7878")?;
+        stream = game_listener;
+        println!("Client");
+    }
+    stream.set_nonblocking(true)?;
+    println!("{:?}", connection);
+    // GAME IS CLIENT
+    // let mut text = String::new();
+    // let stream = TcpStream::connect("127.0.0.1:7878")?;
+    // GAME IS CLIENT
+
+    // GAME IS SERVER
+    // GAME IS SERVER
     let (mut ctx, event_loop) = ContextBuilder::new("Chess", "Me")
         .window_setup(conf::WindowSetup::default().title("My First ggez App"))
-        .window_mode(conf::WindowMode::default().dimensions(400.0, 400.0))
+        .window_mode(conf::WindowMode::default().dimensions(400.0 * X, 400.0 * X))
         .add_resource_path("./resources")
         .build()?;
-    let state = Mainstate::new(&mut ctx)?;
+
+    // GAME IS CLIENT
+    // let state = Mainstate::new(&mut ctx, stream)?;
+    // GAME IS CLIENT
+
+    // GAME IS SERVER
+    let state = Mainstate::new(&mut ctx, connection, stream)?;
+    // GAME IS SERVER
+
     event::run(ctx, event_loop, state)
 }
