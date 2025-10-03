@@ -6,12 +6,8 @@ use ggez::{
     Context, ContextBuilder, GameResult, conf, event,
     graphics::{self, Color, DrawParam, Image, Mesh, Rect},
 };
-
+use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
-use std::{
-    env::set_current_dir,
-    io::{Read, Write},
-};
 use std::{
     i8,
     io::{self, ErrorKind},
@@ -189,33 +185,22 @@ impl event::EventHandler for Mainstate {
                 let row = (_ctx.mouse.position().y / (X * 50.0)) as i8;
                 let col = (_ctx.mouse.position().x / (X * 50.0)) as i8;
                 let pos = (7 - row) * 8 + col;
-
-                // let mut first_notation = String::new();
-                // let mut second_notation = String::new();
-
                 //Set selected square to the most recently clicked square/tile
                 if self.selected_square == Some((row, col)) {
                     self.selected_square = None;
                 } else {
                     self.selected_square = Some((row, col));
                 }
-
                 //Set pos1 to clicked square/tile and process available squares
                 if self.pos1 == None {
                     self.pos1 = Some(pos);
-                    // first_notation = Some(((b'A' + (col as u8)) as char).to_string()).unwrap()
-                    // + (8 - row).to_string().as_str();
-                    // println!("First: {:?}", first_notation);
                     for blablabla in 0..64 {
                         if is_legal(self.pos1.unwrap(), blablabla, &self.state) {
                             self.available_squares.push(blablabla);
                         }
                     }
                 } else if self.pos2 == None && self.pos1 != Some(pos) {
-                    // second_notation = Some(((b'A' + (col as u8)) as char).to_string()).unwrap()
-                    // + (8 - row).to_string().as_str();
                     self.pos2 = Some(pos);
-                    // println!("Second: {:?}", second_notation);
                     self.available_squares = Vec::new();
                 } else {
                     self.pos1 = None;
@@ -241,37 +226,6 @@ impl event::EventHandler for Mainstate {
                                     .as_str();
                         let move_message = first_notation + second_notation.as_str();
                         let the_message = self.get_fen();
-                        // let mut fein = Vec::new();
-                        // let piece_bitboards = [
-                        //     (self.state.board.white_pawns, "P"),
-                        //     (self.state.board.white_knights, "N"),
-                        //     (self.state.board.white_bishops, "B"),
-                        //     (self.state.board.white_rooks, "R"),
-                        //     (self.state.board.white_queens, "Q"),
-                        //     (self.state.board.white_king, "K"),
-                        //     (self.state.board.black_pawns, "p"),
-                        //     (self.state.board.black_knights, "n"),
-                        //     (self.state.board.black_bishops, "b"),
-                        //     (self.state.board.black_rooks, "r"),
-                        //     (self.state.board.black_queens, "q"),
-                        //     (self.state.board.black_king, "k"),
-                        // ];
-                        // for (piece, name) in piece_bitboards.iter() {
-                        //     for k in 0..64 {
-                        //         if (piece >> k) & 1 == 1 {
-                        //             fein.push((k, *name));
-                        //         }
-                        //     }
-                        // }
-                        // for (k, name) in fein {
-                        //     println!("PLEASE HELP ME OH GOD: {:?}", name);
-                        // }
-                        // let mut im_a_motherfucking_baller_get_it_right_fool = Vec::new();
-                        // for i in 0..64 {
-                        //     for j in 0..32 {}
-                        // }
-
-                        // println!("FUCK THSI BULLLSHIT: {:?}", fein);
                         let mut gamestatevar = "0-0:";
                         if self::perform_moves::is_checkmate_stalemate(&mut self.state) {
                             if self::perform_moves::is_check(
@@ -296,7 +250,7 @@ impl event::EventHandler for Mainstate {
                             + ":";
                         if the_message_that_i_use.len() != 128 {
                             println!("WHY");
-                            for i in 0..(128 - the_message_that_i_use.len()) {
+                            for _ in 0..(128 - the_message_that_i_use.len()) {
                                 the_message_that_i_use.push('0');
                             }
                         }
@@ -304,7 +258,6 @@ impl event::EventHandler for Mainstate {
                         println!("{}", the_message_that_i_use.len());
                         self.stream.write(the_message_that_i_use.as_bytes())?;
                         (self.pos1, self.pos2) = (None, None);
-                        //NOOOOOOOOOOOOOOO
                     } else {
                         self.pos1 = Some(pos);
                         for blablabla in 0..64 {
@@ -319,29 +272,19 @@ impl event::EventHandler for Mainstate {
         }
         let mut buffer = [0; 128];
         match self.stream.read_exact(&mut buffer) {
-            // Ok(n) => {
-            //     let message = str::from_utf8(&buffer[0..n])
-            //         .unwrap()
-            //         .chars()
-            //         .map(|character| character.to_digit(18).unwrap())
-            //         .collect::<Vec<_>>();
-            //     let pos1: i8 = ((message[0] - 10) + ((message[1] as u32 - 1) * 8)) as i8;
-            //     let pos2: i8 = ((message[2] - 10) + ((message[3] as u32 - 1) * 8)) as i8;
-            //     self.make_move(pos1, pos2);
-            // }
             Ok(()) => {
                 let recieved_message = str::from_utf8(&buffer[0..128]).unwrap();
                 let message_parts = recieved_message.split(":").collect::<Vec<&str>>();
-                // let move_message = message_parts[1].chars().collect::<Vec<char>>();
-                // let (from, to) = (
-                //     ((move_message[0].to_digit(18).unwrap() - 10)
-                //         + ((move_message[1].to_digit(18).unwrap() - 1) * 8))
-                //         as i8,
-                //     ((move_message[2].to_digit(18).unwrap() - 10)
-                //         + ((move_message[3].to_digit(18).unwrap() - 1) * 8))
-                //         as i8,
-                // );
-                // self.make_move(from, to);
+                let move_message = message_parts[1].chars().collect::<Vec<char>>();
+                let (from, to) = (
+                    ((move_message[0].to_digit(18).unwrap() - 10)
+                        + ((move_message[1].to_digit(18).unwrap() - 1) * 8))
+                        as i8,
+                    ((move_message[2].to_digit(18).unwrap() - 10)
+                        + ((move_message[3].to_digit(18).unwrap() - 1) * 8))
+                        as i8,
+                );
+                self.make_move(from, to);
                 let full_fen = message_parts[3];
                 if full_fen != &self.get_fen() {
                     let fen_parts = full_fen.split("/").enumerate();
@@ -457,24 +400,6 @@ impl event::EventHandler for Mainstate {
                 }
             }
         }
-        // ctx.gfx
-        //     .add_font("FFFnt", graphics::FontData::from_path(ctx, "/font2.ttf")?);
-        // let mut text = Text::new("HELLO");
-        // text.set_scale(100.0);
-
-        // canvas.draw(
-        //     &text,
-        //     DrawParam::default()
-        //         .dest([500.0, 1000.0])
-        //         .color(Color::WHITE),
-        // );
-        // text.set_font("FFFnt");
-        // canvas.draw(
-        //     &text,
-        //     DrawParam::default()
-        //         .dest([100.0, 1000.0])
-        //         .color(Color::WHITE),
-        // );
 
         canvas.finish(ctx)?;
         Ok(())
